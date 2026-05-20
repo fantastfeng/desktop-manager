@@ -1,5 +1,7 @@
 use rusqlite::Connection;
 
+use crate::models::ShortcutRecord;
+
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
         "
@@ -30,6 +32,109 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     )?;
 
     Ok(())
+}
+
+pub fn insert_shortcut(conn: &Connection, shortcut: &ShortcutRecord) -> rusqlite::Result<()> {
+    conn.execute(
+        "
+        INSERT INTO shortcuts (
+            id,
+            name,
+            original_path,
+            managed_path,
+            target_path,
+            icon_path,
+            last_opened_at,
+            created_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+        ",
+        (
+            &shortcut.id,
+            &shortcut.name,
+            &shortcut.original_path,
+            &shortcut.managed_path,
+            &shortcut.target_path,
+            &shortcut.icon_path,
+            &shortcut.last_opened_at,
+            &shortcut.created_at,
+        ),
+    )?;
+
+    Ok(())
+}
+
+pub fn list_shortcuts(conn: &Connection) -> rusqlite::Result<Vec<ShortcutRecord>> {
+    let mut statement = conn.prepare(
+        "
+        SELECT
+            id,
+            name,
+            original_path,
+            managed_path,
+            target_path,
+            icon_path,
+            last_opened_at,
+            created_at
+        FROM shortcuts
+        ORDER BY name COLLATE NOCASE ASC
+        ",
+    )?;
+
+    let records = statement
+        .query_map([], row_to_shortcut)?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+
+    Ok(records)
+}
+
+pub fn find_shortcut(conn: &Connection, id: &str) -> rusqlite::Result<Option<ShortcutRecord>> {
+    let mut statement = conn.prepare(
+        "
+        SELECT
+            id,
+            name,
+            original_path,
+            managed_path,
+            target_path,
+            icon_path,
+            last_opened_at,
+            created_at
+        FROM shortcuts
+        WHERE id = ?1
+        ",
+    )?;
+
+    match statement.query_row([id], row_to_shortcut) {
+        Ok(shortcut) => Ok(Some(shortcut)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+pub fn delete_shortcut(conn: &Connection, id: &str) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM shortcuts WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+pub fn mark_shortcut_opened(conn: &Connection, id: &str, opened_at: &str) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE shortcuts SET last_opened_at = ?1 WHERE id = ?2",
+        (opened_at, id),
+    )?;
+    Ok(())
+}
+
+fn row_to_shortcut(row: &rusqlite::Row<'_>) -> rusqlite::Result<ShortcutRecord> {
+    Ok(ShortcutRecord {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        original_path: row.get(2)?,
+        managed_path: row.get(3)?,
+        target_path: row.get(4)?,
+        icon_path: row.get(5)?,
+        last_opened_at: row.get(6)?,
+        created_at: row.get(7)?,
+    })
 }
 
 #[cfg(test)]
