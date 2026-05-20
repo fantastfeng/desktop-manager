@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "离线桌面管理",
+  "version": "0.1.0",
+  "identifier": "local.offline-desktop-manager",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "离线桌面管理",
+        "width": 1040,
+        "height": 720,
+        "minWidth": 860,
+        "minHeight": 560
+      }
+    ]
+  }
+}

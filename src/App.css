@@ -1,0 +1,49 @@
+:root {
+  font-family: Inter, "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  color: #1f2937;
+  background: #f5f7fb;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: #f5f7fb;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 48px;
+}
+
+.app-intro {
+  max-width: 720px;
+}
+
+.app-intro h1 {
+  margin: 0 0 16px;
+  font-size: 40px;
+  line-height: 1.15;
+}
+
+.app-intro p {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.7;
+  color: #4b5563;
+}
