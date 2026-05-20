@@ -14,7 +14,7 @@ pub struct ShortcutRecord {
     pub created_at: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NoteRecord {
     pub id: String,
     pub title: String,
