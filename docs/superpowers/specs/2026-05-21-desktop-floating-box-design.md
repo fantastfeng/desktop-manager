@@ -1,81 +1,81 @@
-# Desktop Floating Box Design
+# 桌面悬浮小框设计
 
-## Goal
+## 目标
 
-Build the app as a small, draggable, semi-transparent desktop utility window for organizing and opening software shortcuts, files, and folders.
+把应用做成一个小型、可拖动、半透明的桌面工具窗口，用来整理和打开软件快捷方式、文件和文件夹。
 
-## Window
+## 窗口形态
 
-- The main window is borderless and semi-transparent.
-- The whole title area can be dragged to move the window.
-- The default size should be compact, closer to a vertical drawer than a dashboard.
-- The window keeps lightweight controls for minimize and close.
+- 主窗口无系统边框，并保持半透明效果。
+- 顶部标题区域可以拖动，用来移动窗口。
+- 默认尺寸应保持紧凑，更接近竖向小抽屉，而不是大面板。
+- 窗口保留轻量的最小化和关闭按钮。
 
-## Categories
+## 分类
 
-The default categories are:
+默认分类为：
 
-- Software: stores software launch entries such as `.lnk` shortcuts and `.exe` files.
-- Files: stores documents and other files, including Word, PowerPoint, PDF, images, and similar file types.
-- Folders: stores folders.
+- 软件：存放 `.lnk` 快捷方式、`.exe` 程序等软件启动项。
+- 文件：存放 Word、PowerPoint、PDF、图片等普通文件。
+- 文件夹：存放文件夹。
 
-The category bar includes a plus button. The plus button opens a small category creation flow. New categories are user-defined and appear after the default three categories.
+分类栏包含一个加号按钮。点击加号后打开简洁的新建分类流程。用户新增的分类显示在默认三个分类之后。
 
-## Adding Items
+## 添加内容
 
-The primary add interaction is drag and drop:
+主要添加方式是拖拽：
 
-- Dragging a shortcut or executable into the window automatically adds it to Software.
-- Dragging a file into the window automatically adds it to Files.
-- Dragging a folder into the window automatically adds it to Folders.
-- While dragging over the window, the drop area highlights so the user knows the item can be added.
+- 把快捷方式或可执行程序拖入窗口后，自动加入“软件”分类。
+- 把普通文件拖入窗口后，自动加入“文件”分类。
+- 把文件夹拖入窗口后，自动加入“文件夹”分类。
+- 拖拽悬停在窗口上方时，窗口显示高亮投放区域，让用户知道可以松手添加。
 
-The plus button remains available for manual add flows, but drag and drop is the default fast path.
+加号按钮仍保留手动添加入口，但拖拽添加是默认的快速整理方式。
 
-## Display
+## 展示方式
 
-Software uses an icon grid:
+“软件”分类使用图标网格：
 
-- Each software item shows its icon and name.
-- Activating the item launches the target.
+- 每个软件项显示图标和名称。
+- 点击或双击软件项后启动对应目标。
 
-Files and Folders use a Windows-style details list:
+“文件”和“文件夹”分类使用类似 Windows 详细信息的列表：
 
-- Columns: Name and Modified Time.
-- Clicking Name sorts by file or folder name.
-- Clicking Modified Time sorts by modified timestamp.
-- Repeated clicks toggle ascending and descending order.
-- Activating a file opens it with the system default app.
-- Activating a folder opens the folder in Explorer.
+- 列包含：文件名、修改时间。
+- 点击“文件名”按文件或文件夹名称排序。
+- 点击“修改时间”按修改时间排序。
+- 重复点击同一列表头，在升序和降序之间切换。
+- 打开文件时，使用系统默认应用打开。
+- 打开文件夹时，使用资源管理器打开对应目录。
 
-## Persistence
+## 本地持久化
 
-The app persists categories and added items locally. Stored item records include:
+应用在本地保存分类和已添加内容。每条内容记录包含：
 
 - id
-- category id
-- display name
-- original path
-- item type: software, file, or folder
-- modified time when available
-- icon path when available
-- created time
+- 分类 id
+- 显示名称
+- 原始路径
+- 内容类型：软件、文件或文件夹
+- 可用时保存修改时间
+- 可用时保存图标路径
+- 创建时间
 
-The app should not move user files or folders when adding them. It should store references to paths and open those paths on demand.
+添加文件和文件夹时，应用不移动用户原始文件，只保存路径引用，并在用户打开时访问该路径。
 
-## Error Handling
+## 错误处理
 
-- If a dropped path no longer exists, show a concise inline error and keep the app usable.
-- If opening an item fails, show a concise inline error.
-- If multiple items are dropped, add all valid items and report any failures.
+- 如果拖入的路径已经不存在，显示简短的内联错误，并保持应用可继续使用。
+- 如果打开某个内容失败，显示简短的内联错误。
+- 如果一次拖入多个内容，添加所有有效内容，并报告失败项。
 
-## Testing
+## 测试范围
 
-Automated tests should cover:
+自动化测试需要覆盖：
 
-- Default categories render in order.
-- Dragged paths are auto-routed to Software, Files, or Folders.
-- Files and folders render in details view with Name and Modified Time columns.
-- Clicking each column header toggles sorting.
-- Software items render as icons.
-- Tauri window config remains borderless and transparent.
+- 默认分类按“软件、文件、文件夹”的顺序渲染。
+- 拖入路径后可以自动分配到“软件、文件、文件夹”。
+- 文件和文件夹以详细信息列表展示，并包含“文件名”和“修改时间”列。
+- 点击每个列表头可以切换排序。
+- 软件项以图标方式展示。
+- Tauri 主窗口配置保持无边框和透明。
