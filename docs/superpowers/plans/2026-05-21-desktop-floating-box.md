@@ -13,11 +13,11 @@
 ## File Structure
 
 - Modify: `E:\桌面管理\src-tauri\src\models.rs`
-  - 新增 `DesktopCategoryRecord`、`DesktopItemRecord`、`DesktopItemKind`、`DesktopItemInput`。
+  - 新增 `DesktopCategoryRecord`、`DesktopCategoryKind`、`DesktopItemRecord`、`DesktopItemKind`。
 - Modify: `E:\桌面管理\src-tauri\src\db.rs`
-  - 新增 `desktop_categories`、`desktop_items` 表迁移，以及分类/条目 CRUD 查询函数。
+  - 新增 `desktop_categories`、`desktop_items` 表迁移，以及分类/条目 CRUD 查询函数和分类排序更新函数。
 - Create: `E:\桌面管理\src-tauri\src\desktop_items.rs`
-  - 新增 Tauri 命令：列出分类、创建分类、列出条目、添加路径、打开条目，并在添加软件时提取图标。
+  - 新增 Tauri 命令：列出分类、创建带类型的分类、重排分类、列出条目、添加路径、打开条目，并在添加软件时提取图标。
 - Modify: `E:\桌面管理\src-tauri\src\main.rs`
   - 注册 `desktop_items` 模块和命令。
 - Modify: `E:\桌面管理\src\types.ts`
@@ -25,13 +25,13 @@
 - Modify: `E:\桌面管理\src\api.ts`
   - 新增桌面盒子相关 invoke 封装。
 - Create: `E:\桌面管理\src\components\FloatingBox.tsx`
-  - 实现悬浮小框主 UI、拖拽添加、分类切换、排序和打开条目。
+  - 实现悬浮小框主 UI、拖拽添加、分类切换、分类鼠标拖拽排序、内容排序和打开条目。
 - Modify: `E:\桌面管理\src\App.tsx`
   - 主路由渲染 `FloatingBox`，保留便签窗口路由。
 - Modify: `E:\桌面管理\src\App.css`
   - 改成紧凑、半透明、竖向小抽屉视觉。
 - Modify: `E:\桌面管理\src\test\App.test.tsx`
-  - 覆盖默认分类、拖拽自动分类、排序、软件图标网格和窗口配置。
+  - 覆盖默认分类、加号新增软件类分类、分类鼠标拖拽排序、拖拽自动分类、排序、软件图标网格和窗口配置。
 - Modify: `E:\桌面管理\src\test\setup.ts`
   - 如有需要，补充 Tauri 拖拽/窗口 API mock。
 
@@ -60,6 +60,28 @@ fn desktop_item_crud_persists_categories_and_items() {
             .map(|category| category.name.as_str())
             .collect::<Vec<_>>(),
         vec!["软件", "文件", "文件夹"]
+    );
+
+    let dev_category = DesktopCategoryRecord {
+        id: "dev-tools".to_string(),
+        name: "开发软件".to_string(),
+        kind: DesktopCategoryKind::Software,
+        sort_order: 3,
+        created_at: "2026-05-21T10:23:00Z".to_string(),
+    };
+    insert_desktop_category(&conn, &dev_category).expect("insert custom software category");
+    update_desktop_category_order(
+        &conn,
+        &["files".to_string(), "software".to_string(), "folders".to_string(), "dev-tools".to_string()],
+    )
+    .expect("reorder categories");
+    assert_eq!(
+        list_desktop_categories(&conn)
+            .expect("list reordered categories")
+            .iter()
+            .map(|category| category.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["files", "software", "folders", "dev-tools"]
     );
 
     let item = DesktopItemRecord {
@@ -103,9 +125,36 @@ Expected: FAIL，错误包含缺少 `DesktopItemRecord`、`DesktopItemKind`、`l
 
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DesktopCategoryKind {
+    Software,
+    File,
+    Folder,
+}
+
+impl DesktopCategoryKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Software => "software",
+            Self::File => "file",
+            Self::Folder => "folder",
+        }
+    }
+
+    pub fn from_str(value: &str) -> Self {
+        match value {
+            "software" => Self::Software,
+            "folder" => Self::Folder,
+            _ => Self::File,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DesktopCategoryRecord {
     pub id: String,
     pub name: String,
+    pub kind: DesktopCategoryKind,
     pub sort_order: i64,
     pub created_at: String,
 }
@@ -155,7 +204,8 @@ pub struct DesktopItemRecord {
 
 ```rust
 use crate::models::{
-    DesktopCategoryRecord, DesktopItemKind, DesktopItemRecord, NoteRecord, ShortcutRecord,
+    DesktopCategoryKind, DesktopCategoryRecord, DesktopItemKind, DesktopItemRecord, NoteRecord,
+    ShortcutRecord,
 };
 ```
 
@@ -165,6 +215,7 @@ use crate::models::{
 CREATE TABLE IF NOT EXISTS desktop_categories (
     id TEXT PRIMARY KEY NOT NULL,
     name TEXT NOT NULL,
+    kind TEXT NOT NULL,
     sort_order INTEGER NOT NULL,
     created_at TEXT NOT NULL
 );
@@ -181,11 +232,11 @@ CREATE TABLE IF NOT EXISTS desktop_items (
     FOREIGN KEY(category_id) REFERENCES desktop_categories(id)
 );
 
-INSERT OR IGNORE INTO desktop_categories (id, name, sort_order, created_at)
+INSERT OR IGNORE INTO desktop_categories (id, name, kind, sort_order, created_at)
 VALUES
-    ('software', '软件', 0, '1970-01-01T00:00:00Z'),
-    ('files', '文件', 1, '1970-01-01T00:00:00Z'),
-    ('folders', '文件夹', 2, '1970-01-01T00:00:00Z');
+    ('software', '软件', 'software', 0, '1970-01-01T00:00:00Z'),
+    ('files', '文件', 'file', 1, '1970-01-01T00:00:00Z'),
+    ('folders', '文件夹', 'folder', 2, '1970-01-01T00:00:00Z');
 ```
 
 新增函数：
@@ -194,7 +245,7 @@ VALUES
 pub fn list_desktop_categories(conn: &Connection) -> rusqlite::Result<Vec<DesktopCategoryRecord>> {
     let mut statement = conn.prepare(
         "
-        SELECT id, name, sort_order, created_at
+        SELECT id, name, kind, sort_order, created_at
         FROM desktop_categories
         ORDER BY sort_order ASC, name COLLATE NOCASE ASC
         ",
@@ -205,8 +256,9 @@ pub fn list_desktop_categories(conn: &Connection) -> rusqlite::Result<Vec<Deskto
             Ok(DesktopCategoryRecord {
                 id: row.get(0)?,
                 name: row.get(1)?,
-                sort_order: row.get(2)?,
-                created_at: row.get(3)?,
+                kind: DesktopCategoryKind::from_str(&row.get::<_, String>(2)?),
+                sort_order: row.get(3)?,
+                created_at: row.get(4)?,
             })
         })?
         .collect()
@@ -218,11 +270,30 @@ pub fn insert_desktop_category(
 ) -> rusqlite::Result<()> {
     conn.execute(
         "
-        INSERT INTO desktop_categories (id, name, sort_order, created_at)
-        VALUES (?1, ?2, ?3, ?4)
+        INSERT INTO desktop_categories (id, name, kind, sort_order, created_at)
+        VALUES (?1, ?2, ?3, ?4, ?5)
         ",
-        (&category.id, &category.name, category.sort_order, &category.created_at),
+        (
+            &category.id,
+            &category.name,
+            category.kind.as_str(),
+            category.sort_order,
+            &category.created_at,
+        ),
     )?;
+    Ok(())
+}
+
+pub fn update_desktop_category_order(
+    conn: &Connection,
+    ordered_ids: &[String],
+) -> rusqlite::Result<()> {
+    for (index, id) in ordered_ids.iter().enumerate() {
+        conn.execute(
+            "UPDATE desktop_categories SET sort_order = ?1 WHERE id = ?2",
+            (index as i64, id),
+        )?;
+    }
     Ok(())
 }
 
@@ -337,11 +408,11 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn category_for_path_routes_default_types() {
-        assert_eq!(category_for_path(Path::new(r"C:\Apps\Code.exe"), false), "software");
-        assert_eq!(category_for_path(Path::new(r"C:\Users\me\Desktop\App.lnk"), false), "software");
-        assert_eq!(category_for_path(Path::new(r"C:\Users\me\Desktop\方案.docx"), false), "files");
-        assert_eq!(category_for_path(Path::new(r"C:\Users\me\Desktop\Work"), true), "folders");
+    fn kind_for_path_routes_default_types() {
+        assert_eq!(kind_for_path(Path::new(r"C:\Apps\Code.exe"), false), DesktopItemKind::Software);
+        assert_eq!(kind_for_path(Path::new(r"C:\Users\me\Desktop\App.lnk"), false), DesktopItemKind::Software);
+        assert_eq!(kind_for_path(Path::new(r"C:\Users\me\Desktop\方案.docx"), false), DesktopItemKind::File);
+        assert_eq!(kind_for_path(Path::new(r"C:\Users\me\Desktop\Work"), true), DesktopItemKind::Folder);
     }
 }
 ```
@@ -352,10 +423,10 @@ Run:
 
 ```powershell
 cd E:\桌面管理\src-tauri
-cargo test category_for_path_routes_default_types
+cargo test kind_for_path_routes_default_types
 ```
 
-Expected: FAIL，错误包含 `category_for_path` 未定义。
+Expected: FAIL，错误包含 `kind_for_path` 未定义。
 
 - [ ] **Step 3: 实现命令模块**
 
@@ -375,7 +446,7 @@ use crate::{
     app_state::AppState,
     db,
     error::{AppError, ErrorResponse},
-    models::{DesktopCategoryRecord, DesktopItemKind, DesktopItemRecord},
+    models::{DesktopCategoryKind, DesktopCategoryRecord, DesktopItemKind, DesktopItemRecord},
 };
 
 #[tauri::command]
@@ -394,6 +465,7 @@ pub fn list_desktop_categories(
 #[tauri::command]
 pub fn create_desktop_category(
     name: String,
+    kind: String,
     state: State<'_, AppState>,
 ) -> Result<DesktopCategoryRecord, ErrorResponse> {
     let trimmed = name.trim();
@@ -401,6 +473,7 @@ pub fn create_desktop_category(
         return Err(AppError::File("分类名称不能为空".to_string()).into());
     }
 
+    let category_kind = DesktopCategoryKind::from_str(&kind);
     let conn = state
         .conn
         .lock()
@@ -415,11 +488,27 @@ pub fn create_desktop_category(
     let category = DesktopCategoryRecord {
         id: Uuid::new_v4().to_string(),
         name: trimmed.to_string(),
+        kind: category_kind,
         sort_order: next_order,
         created_at: Utc::now().to_rfc3339(),
     };
     db::insert_desktop_category(&conn, &category).map_err(AppError::from)?;
     Ok(category)
+}
+
+#[tauri::command]
+pub fn reorder_desktop_categories(
+    ordered_ids: Vec<String>,
+    state: State<'_, AppState>,
+) -> Result<Vec<DesktopCategoryRecord>, ErrorResponse> {
+    let conn = state
+        .conn
+        .lock()
+        .map_err(|error| AppError::Database(error.to_string()))?;
+    db::update_desktop_category_order(&conn, &ordered_ids).map_err(AppError::from)?;
+    db::list_desktop_categories(&conn)
+        .map_err(AppError::from)
+        .map_err(Into::into)
 }
 
 #[tauri::command]
@@ -453,8 +542,9 @@ pub fn add_desktop_paths(
             return Err(AppError::File(format!("路径不存在：{path}")).into());
         }
         let metadata = std::fs::metadata(&path_buf).map_err(AppError::from)?;
-        let category_id = category_for_path(&path_buf, metadata.is_dir()).to_string();
-        let kind = kind_for_category(&category_id);
+        let kind = kind_for_path(&path_buf, metadata.is_dir());
+        let categories = db::list_desktop_categories(&conn).map_err(AppError::from)?;
+        let category_id = default_category_id_for_kind(&categories, &kind).to_string();
         let modified_at = metadata.modified().ok().map(|time| {
             let datetime: DateTime<Utc> = time.into();
             datetime.to_rfc3339()
@@ -500,27 +590,39 @@ pub fn open_desktop_item(id: String, state: State<'_, AppState>) -> Result<(), E
         .map_err(Into::into)
 }
 
-fn category_for_path(path: &Path, is_dir: bool) -> &'static str {
+fn kind_for_path(path: &Path, is_dir: bool) -> DesktopItemKind {
     if is_dir {
-        return "folders";
+        return DesktopItemKind::Folder;
     }
     match path.extension().and_then(|extension| extension.to_str()) {
         Some(extension)
             if extension.eq_ignore_ascii_case("lnk")
                 || extension.eq_ignore_ascii_case("exe") =>
         {
-            "software"
+            DesktopItemKind::Software
         }
-        _ => "files",
+        _ => DesktopItemKind::File,
     }
 }
 
-fn kind_for_category(category_id: &str) -> DesktopItemKind {
-    match category_id {
-        "software" => DesktopItemKind::Software,
-        "folders" => DesktopItemKind::Folder,
-        _ => DesktopItemKind::File,
-    }
+fn default_category_id_for_kind<'a>(
+    categories: &'a [DesktopCategoryRecord],
+    kind: &DesktopItemKind,
+) -> &'a str {
+    let category_kind = match kind {
+        DesktopItemKind::Software => DesktopCategoryKind::Software,
+        DesktopItemKind::File => DesktopCategoryKind::File,
+        DesktopItemKind::Folder => DesktopCategoryKind::Folder,
+    };
+    categories
+        .iter()
+        .find(|category| category.kind == category_kind)
+        .map(|category| category.id.as_str())
+        .unwrap_or(match kind {
+            DesktopItemKind::Software => "software",
+            DesktopItemKind::File => "files",
+            DesktopItemKind::Folder => "folders",
+        })
 }
 
 fn software_icon_path(
@@ -603,6 +705,7 @@ mod desktop_items;
 ```rust
 desktop_items::list_desktop_categories,
 desktop_items::create_desktop_category,
+desktop_items::reorder_desktop_categories,
 desktop_items::list_desktop_items,
 desktop_items::add_desktop_paths,
 desktop_items::open_desktop_item,
@@ -614,7 +717,7 @@ Run:
 
 ```powershell
 cd E:\桌面管理\src-tauri
-cargo test category_for_path_routes_default_types
+cargo test kind_for_path_routes_default_types
 cargo test
 ```
 
@@ -642,9 +745,9 @@ git commit -m "feat: add desktop item commands"
 
 ```tsx
 const categories = [
-  { id: 'software', name: '软件', sort_order: 0, created_at: '2026-05-21T00:00:00Z' },
-  { id: 'files', name: '文件', sort_order: 1, created_at: '2026-05-21T00:00:00Z' },
-  { id: 'folders', name: '文件夹', sort_order: 2, created_at: '2026-05-21T00:00:00Z' },
+  { id: 'software', name: '软件', kind: 'software', sort_order: 0, created_at: '2026-05-21T00:00:00Z' },
+  { id: 'files', name: '文件', kind: 'file', sort_order: 1, created_at: '2026-05-21T00:00:00Z' },
+  { id: 'folders', name: '文件夹', kind: 'folder', sort_order: 2, created_at: '2026-05-21T00:00:00Z' },
 ];
 
 const softwareItems = [
@@ -727,6 +830,38 @@ it('drops paths into the floating box and refreshes active category', async () =
   });
   expect(container.querySelector('.floating-box')).not.toBeNull();
 });
+
+it('creates a software category from the add button', async () => {
+  const user = userEvent.setup();
+  vi.spyOn(window, 'prompt')
+    .mockReturnValueOnce('开发软件')
+    .mockReturnValueOnce('software');
+  render(<App />);
+
+  await user.click(await screen.findByRole('button', { name: '新增分类' }));
+
+  expect(invokeMock).toHaveBeenCalledWith('create_desktop_category', {
+    name: '开发软件',
+    kind: 'software',
+  });
+});
+
+it('reorders category tabs with mouse drag', async () => {
+  render(<App />);
+
+  const software = await screen.findByRole('button', { name: '软件' });
+  const files = screen.getByRole('button', { name: '文件' });
+
+  fireEvent.dragStart(software);
+  fireEvent.dragOver(files);
+  fireEvent.drop(files);
+
+  await waitFor(() => {
+    expect(invokeMock).toHaveBeenCalledWith('reorder_desktop_categories', {
+      orderedIds: ['files', 'software', 'folders'],
+    });
+  });
+});
 ```
 
 更新 `beforeEach` 的 `invokeMock.mockImplementation`：
@@ -740,6 +875,16 @@ if (command === 'list_desktop_items') {
   return [];
 }
 if (command === 'add_desktop_paths') return [];
+if (command === 'create_desktop_category') {
+  return {
+    id: 'dev-tools',
+    name: '开发软件',
+    kind: 'software',
+    sort_order: 3,
+    created_at: '2026-05-21T00:00:00Z',
+  };
+}
+if (command === 'reorder_desktop_categories') return [categories[1], categories[0], categories[2]];
 if (command === 'open_desktop_item') return undefined;
 ```
 
@@ -760,10 +905,12 @@ Expected: FAIL，错误包含找不到“软件”分类按钮、`desktop-drop-z
 
 ```ts
 export type DesktopItemKind = 'software' | 'file' | 'folder';
+export type DesktopCategoryKind = 'software' | 'file' | 'folder';
 
 export interface DesktopCategoryRecord {
   id: string;
   name: string;
+  kind: DesktopCategoryKind;
   sort_order: number;
   created_at: string;
 }
@@ -789,6 +936,7 @@ export type SortDirection = 'asc' | 'desc';
 
 ```ts
 import type {
+  DesktopCategoryKind,
   DesktopCategoryRecord,
   DesktopItemRecord,
   NoteInput,
@@ -805,8 +953,12 @@ export function listDesktopCategories() {
   return invoke<DesktopCategoryRecord[]>('list_desktop_categories');
 }
 
-export function createDesktopCategory(name: string) {
-  return invoke<DesktopCategoryRecord>('create_desktop_category', { name });
+export function createDesktopCategory(name: string, kind: DesktopCategoryKind) {
+  return invoke<DesktopCategoryRecord>('create_desktop_category', { name, kind });
+}
+
+export function reorderDesktopCategories(orderedIds: string[]) {
+  return invoke<DesktopCategoryRecord[]>('reorder_desktop_categories', { orderedIds });
 }
 
 export function listDesktopItems(categoryId: string) {
@@ -863,6 +1015,7 @@ import {
   listDesktopCategories,
   listDesktopItems,
   openDesktopItem,
+  reorderDesktopCategories,
 } from '../api';
 import type {
   DesktopCategoryRecord,
@@ -912,6 +1065,7 @@ export default function FloatingBox() {
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [draggedCategoryId, setDraggedCategoryId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function refreshCategories() {
@@ -970,12 +1124,33 @@ export default function FloatingBox() {
   async function handleCreateCategory() {
     const name = window.prompt('新分类名称');
     if (!name?.trim()) return;
+    const kindInput = window.prompt('分类类型：software / file / folder', 'software');
+    const kind: DesktopCategoryKind =
+      kindInput === 'file' || kindInput === 'folder' ? kindInput : 'software';
     try {
-      const category = await createDesktopCategory(name);
+      const category = await createDesktopCategory(name, kind);
       await refreshCategories();
       setActiveCategoryId(category.id);
     } catch (err) {
       setError(`新建分类失败：${errorMessage(err)}`);
+    }
+  }
+
+  async function handleCategoryDrop(targetCategoryId: string) {
+    if (!draggedCategoryId || draggedCategoryId === targetCategoryId) return;
+    const next = [...categories];
+    const from = next.findIndex((category) => category.id === draggedCategoryId);
+    const to = next.findIndex((category) => category.id === targetCategoryId);
+    if (from < 0 || to < 0) return;
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    setCategories(next);
+    setDraggedCategoryId(null);
+    try {
+      await reorderDesktopCategories(next.map((category) => category.id));
+    } catch (err) {
+      setError(`调整分类顺序失败：${errorMessage(err)}`);
+      await refreshCategories();
     }
   }
 
@@ -996,6 +1171,10 @@ export default function FloatingBox() {
             key={category.id}
             className={category.id === activeCategoryId ? 'category-pill active' : 'category-pill'}
             type="button"
+            draggable
+            onDragStart={() => setDraggedCategoryId(category.id)}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={() => handleCategoryDrop(category.id)}
             onClick={() => setActiveCategoryId(category.id)}
           >
             {category.name}
@@ -1347,8 +1526,9 @@ git commit -m "fix: verify floating desktop box"
 - Spec coverage:
   - 半透明可拖动小框：Task 4 和 Task 5 覆盖。
   - 默认分类“软件、文件、文件夹”：Task 1、Task 3、Task 4 覆盖。
-  - 加号新增分类：Task 2、Task 4 覆盖。
-  - 拖拽自动分类：Task 2、Task 3、Task 4 覆盖。
+  - 加号新增软件类分类和其它类型分类：Task 1、Task 2、Task 3、Task 4 覆盖。
+  - 分类鼠标拖拽排序和持久化：Task 1、Task 2、Task 3、Task 4 覆盖。
+  - 拖拽自动分类到第一个匹配类型分类：Task 2、Task 3、Task 4 覆盖。
   - 软件图标展示：Task 2 负责提取图标，Task 4 负责渲染图标。
   - 文件/文件夹详细信息和排序：Task 3、Task 4 覆盖。
   - 本地持久化：Task 1、Task 2 覆盖。
@@ -1357,5 +1537,7 @@ git commit -m "fix: verify floating desktop box"
 - Plan wording scan: 未发现待补充内容。
 - Type consistency:
   - 后端 `DesktopItemKind` 序列化为 `software | file | folder`，与前端 `DesktopItemKind` 一致。
+  - 后端 `DesktopCategoryKind` 序列化为 `software | file | folder`，与前端 `DesktopCategoryKind` 一致。
   - 后端命令参数 `category_id` 在 Rust 中对应前端 invoke 参数 `categoryId`，Tauri 会按 camelCase 映射。
+  - 后端命令参数 `ordered_ids` 在 Rust 中对应前端 invoke 参数 `orderedIds`，Tauri 会按 camelCase 映射。
   - 排序键 `name | modified_at` 与 `DesktopItemRecord` 字段一致。
