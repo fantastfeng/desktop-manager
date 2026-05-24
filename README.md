@@ -2,6 +2,16 @@
 
 一个离线优先的 Windows 桌面整理工具。应用使用透明悬浮窗口收纳软件快捷方式、文件和文件夹，支持拖拽添加、分类管理、搜索、排序和托盘控制。
 
+## 下载安装
+
+前往 [Releases](https://github.com/fantastfeng/desktop-manager/releases) 页面下载最新版 `offline-desktop-manager.exe`。
+
+- **双击即可运行，无需安装任何环境**（Node.js、Rust、Python 等均不需要）
+- 系统要求：Windows 10 或 Windows 11
+- 文件大小约 10.7 MB
+
+第一次运行时 Windows SmartScreen 可能弹窗提示，点击「更多信息」→「仍要运行」即可。
+
 ## 功能
 
 - 透明无边框悬浮窗口，可作为桌面上的轻量收纳面板。
