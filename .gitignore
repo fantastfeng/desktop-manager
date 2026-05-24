@@ -3,4 +3,13 @@ dist/
 src-tauri/target/
 .tools/
 .superpowers/
+.claude/
+docs/superpowers/
+.env
+.env.*
+!.env.example
+*.local.json
+*.db
+*.sqlite
+*.sqlite3
 *.log

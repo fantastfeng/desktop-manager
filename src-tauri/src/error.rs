@@ -12,10 +12,8 @@ pub enum AppError {
     File(String),
     #[error("Database error: {0}")]
     Database(String),
-    #[error("A file already exists at the restore destination")]
-    RestoreConflict,
-    #[error("Window error: {0}")]
-    Window(String),
+    #[error("{0} was not found")]
+    NotFound(String),
 }
 
 #[derive(Debug, Clone, Serialize)]
