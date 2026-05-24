@@ -90,8 +90,6 @@ cargo test --manifest-path src-tauri/Cargo.toml
 - 用户拖入的本机文件路径
 - 软件图标缓存
 
-仓库不会提交运行时数据库、图标缓存、构建产物、本机工具配置、环境变量文件或个人开发过程笔记。发布前请继续避免提交 `.env`、`.claude/`、`docs/superpowers/`、`dist/`、`node_modules/` 和 `src-tauri/target/`。
-
 ## 目录结构
 
 ```text
