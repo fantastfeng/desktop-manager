@@ -33,5 +33,15 @@
         "dragDropEnabled": true
       }
     ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "offlineInstaller",
+        "silent": true
+      }
+    }
   }
 }
